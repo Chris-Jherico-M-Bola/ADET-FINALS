@@ -6,7 +6,7 @@ This guide explains how to run and use the website after the Laravel + Vue conve
 
 ADET Presenter lets you:
 
-- Upload PowerPoint files (`.ppt` or `.pptx`)
+- Upload presentation files (`.ppt`, `.pptx`, or `.pdf`)
 - Convert them to PDF in the backend
 - Present slides in the browser
 - Control slides with voice commands and keyboard shortcuts
@@ -20,23 +20,18 @@ Before using the site, make sure these are installed:
 - Composer
 - Node.js and npm
 - SQLite enabled for Laravel
-- LibreOffice installed on the machine that runs the backend
-
-If LibreOffice is not on your `PATH`, set one of these in `.env`:
-
-- `LIBREOFFICE_PATH`
-- `SOFFICE_PATH`
 
 ## 3. Install and run the project
 
 From the project root:
 
 ```bash
+cp .env.example .env
 composer install
 npm install
+touch database/database.sqlite
 php artisan migrate
-php artisan serve
-npm run dev
+composer dev
 ```
 
 Open the Laravel app in your browser, usually at:
@@ -50,7 +45,7 @@ http://127.0.0.1:8000
 On the home screen:
 
 1. Click the upload area or drag and drop a file into it.
-2. Choose a `.ppt` or `.pptx` file.
+2. Choose a `.ppt`, `.pptx`, or `.pdf` file.
 3. Optionally enter a custom title.
 4. Click **Upload presentation**.
 
@@ -145,8 +140,8 @@ Deletion removes the database record and deletes the stored files.
 
 ### Upload succeeds but conversion fails
 
-- Check that LibreOffice is installed.
-- Confirm the file is a valid `.ppt` or `.pptx`.
+- Confirm the file is a valid `.ppt`, `.pptx`, or `.pdf`.
+- Check that Node.js is on your PATH (`node --version`).
 - Check the error message shown on the presentation card.
 
 ### The page looks blank on first load

@@ -3,7 +3,7 @@
         <div class="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-indigo-950/30 to-transparent"></div>
         <div class="pointer-events-none absolute right-0 top-24 h-56 w-56 rounded-full bg-violet-600/10 blur-3xl"></div>
 
-        <div class="mx-auto flex max-w-7xl flex-col gap-6">
+        <div class="mx-auto flex w-full max-w-[90vw] flex-col gap-6">
             <header class="flex flex-col gap-4 border-b border-slate-800/70 pb-5 md:flex-row md:items-end md:justify-between">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-300">ADET Presenter</p>
@@ -23,7 +23,7 @@
                     <div class="mb-5 flex items-center justify-between gap-3">
                         <div>
                             <h2 class="text-lg font-bold text-white">Upload presentation</h2>
-                            <p class="text-sm text-slate-400">PPT and PPTX only, up to 50MB.</p>
+                            <p class="text-sm text-slate-400">PPT, PPTX, and PDF, up to 50MB.</p>
                         </div>
                         <button
                             type="button"
@@ -48,7 +48,7 @@
                                 ref="fileInput"
                                 type="file"
                                 class="hidden"
-                                accept=".ppt,.pptx"
+                                accept=".ppt,.pptx,.pdf"
                                 @change="handleFileInput"
                             >
 
@@ -101,51 +101,88 @@
                     <div class="mt-6 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
                         <h3 class="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Core features</h3>
                         <ul class="mt-3 space-y-2 text-sm text-slate-300">
-                            <li>- Upload PPT files and present them</li>
+                            <li>- Upload PPT, PPTX, or PDF files and present them</li>
                             <li>- Voice commands for next, previous, and exit</li>
                             <li>- Keyboard shortcuts for fast navigation</li>
                         </ul>
                     </div>
                 </section>
 
-                <section class="space-y-4">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <div>
+                <section class="panel flex flex-col">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 px-5 py-4">
+                        <div class="flex items-baseline gap-2">
                             <h2 class="text-xl font-bold text-white">Presentation library</h2>
-                            <p class="text-sm text-slate-400">{{ presentations.length }} saved deck(s)</p>
+                            <span class="text-sm text-slate-400">
+                                {{ filteredPresentations.length }}{{ typeFilter !== 'all' || searchQuery ? ` / ${presentations.length}` : '' }} saved deck(s)
+                            </span>
                         </div>
                         <button
                             type="button"
-                            class="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-slate-700 hover:text-white md:hidden"
+                            class="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-slate-700 hover:text-white"
                             @click="refreshLibrary"
                         >
                             Refresh
                         </button>
                     </div>
 
-                    <div v-if="loadingList" class="panel flex min-h-[240px] items-center justify-center p-8 text-slate-400">
+                    <div class="flex items-center gap-2 border-b border-slate-800/80 px-5 py-3">
+                        <div class="relative flex-1">
+                            <svg class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/>
+                            </svg>
+                            <input
+                                v-model="searchQuery"
+                                type="text"
+                                placeholder="Search decks..."
+                                class="w-full rounded-lg border border-slate-800 bg-slate-950 py-1.5 pl-9 pr-3 text-xs text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-indigo-500"
+                            />
+                        </div>
+                        <div class="flex rounded-lg border border-slate-800 bg-slate-950 text-[11px] font-semibold">
+                            <button
+                                v-for="t in ['all', 'ppt', 'pptx', 'pdf']"
+                                :key="t"
+                                class="rounded-lg px-2.5 py-1.5 uppercase tracking-wider transition"
+                                :class="typeFilter === t ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'"
+                                @click="typeFilter = t"
+                            >{{ t === 'all' ? 'All' : t }}</button>
+                        </div>
+                        <button
+                            class="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-[11px] font-semibold text-slate-400 transition hover:text-slate-200"
+                            @click="sortOrder = sortOrder === 'newest' ? 'oldest' : 'newest'"
+                        >
+                            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path v-if="sortOrder === 'newest'" stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/>
+                                <path v-else stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4"/>
+                            </svg>
+                            {{ sortOrder === 'newest' ? 'Newest' : 'Oldest' }}
+                        </button>
+                    </div>
+
+                    <div v-if="loadingList" class="flex min-h-[200px] items-center justify-center p-8 text-slate-400">
                         Loading presentations...
                     </div>
 
-                    <div v-else-if="presentations.length === 0" class="panel flex min-h-[240px] flex-col items-center justify-center p-8 text-center">
+                    <div v-else-if="presentations.length === 0" class="flex min-h-[200px] flex-col items-center justify-center p-8 text-center">
                         <p class="text-lg font-semibold text-white">Your library is empty</p>
                         <p class="mt-2 max-w-md text-sm text-slate-400">Upload your first PowerPoint deck to start presenting.</p>
                     </div>
 
-                    <div v-else class="space-y-4">
+                    <div v-else-if="filteredPresentations.length === 0" class="flex min-h-[200px] flex-col items-center justify-center p-8 text-center">
+                        <p class="text-lg font-semibold text-white">No matches found</p>
+                        <p class="mt-2 max-w-md text-sm text-slate-400">Try a different search term or filter.</p>
+                    </div>
+
+                    <div v-else ref="listRef" class="overflow-y-auto divide-y divide-slate-800" :style="listStyle">
                         <article
-                            v-for="presentation in presentations"
+                            v-for="presentation in filteredPresentations"
                             :key="presentation.id"
-                            class="panel flex flex-col gap-4 p-5 transition hover:border-slate-700"
+                            class="flex flex-col gap-3 p-4 transition hover:bg-slate-900/50"
                             :class="cardTone(presentation.status)"
                         >
                             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex flex-wrap items-center gap-2">
                                         <h3 class="truncate text-lg font-bold text-white">{{ presentation.title }}</h3>
-                                        <span class="rounded-full border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
-                                            {{ presentation.status }}
-                                        </span>
                                     </div>
                                     <p class="mt-1 truncate text-sm text-slate-400">{{ presentation.original_name }}</p>
                                     <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-400">
@@ -226,12 +263,58 @@
                 </div>
             </div>
         </div>
+
+        <button
+            type="button"
+            class="fixed bottom-6 right-6 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-slate-700/60 bg-slate-900/85 text-sm font-bold text-slate-400 shadow-lg shadow-slate-950/60 backdrop-blur transition hover:border-slate-600 hover:text-white"
+            @click="showMembersModal = true"
+        >?</button>
+
+        <div
+            v-if="showMembersModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+            @click.self="showMembersModal = false"
+        >
+            <div class="panel w-full max-w-lg p-6">
+                <div class="mb-4 flex items-center justify-between">
+                    <h3 class="text-lg font-bold text-white">Project Members</h3>
+                    <button
+                        type="button"
+                        class="rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-400 transition hover:text-white"
+                        @click="showMembersModal = false"
+                    >Close</button>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">JD</div>
+                        <div>
+                            <p class="text-sm font-semibold text-white">John Doe</p>
+                            <p class="text-xs text-slate-400">Developer</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600 text-xs font-bold text-white">JS</div>
+                        <div>
+                            <p class="text-sm font-semibold text-white">Jane Smith</p>
+                            <p class="text-xs text-slate-400">Designer</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">AC</div>
+                        <div>
+                            <p class="text-sm font-semibold text-white">Alex Chen</p>
+                            <p class="text-xs text-slate-400">Project Manager</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script setup>
 import axios from 'axios';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const emit = defineEmits(['present']);
 
@@ -245,8 +328,57 @@ const progress = ref(0);
 const isDragging = ref(false);
 const deleteTarget = ref(null);
 const fileInput = ref(null);
+const listRef = ref(null);
+const listStyle = ref({});
+const searchQuery = ref('');
+const typeFilter = ref('all');
+const sortOrder = ref('newest');
+const showMembersModal = ref(false);
 
 let refreshTimer = null;
+
+function getExtension(name) {
+    return name.split('.').pop()?.toLowerCase() ?? '';
+}
+
+const filteredPresentations = computed(() => {
+    let list = presentations.value;
+
+    // search by title or original name
+    const query = searchQuery.value.trim().toLowerCase();
+    if (query) {
+        list = list.filter((p) => p.title.toLowerCase().includes(query) || p.original_name.toLowerCase().includes(query));
+    }
+
+    // filter by file type
+    if (typeFilter.value !== 'all') {
+        list = list.filter((p) => getExtension(p.original_name) === typeFilter.value);
+    }
+
+    // sort by date
+    list = [...list].sort((a, b) => {
+        const dateA = new Date(a.created_at).getTime();
+        const dateB = new Date(b.created_at).getTime();
+        return sortOrder.value === 'newest' ? dateB - dateA : dateA - dateB;
+    });
+
+    return list;
+});
+
+watch(filteredPresentations, () => updateListHeight(), { flush: 'post' });
+
+function updateListHeight() {
+    nextTick(() => {
+        if (!listRef.value || listRef.value.children.length === 0) {
+            return;
+        }
+
+        const firstEntry = listRef.value.children[0];
+        const entryHeight = firstEntry.offsetHeight;
+        const totalHeight = entryHeight * 3;
+        listStyle.value = { maxHeight: `${totalHeight}px` };
+    });
+}
 
 const formattedFileSize = computed(() => {
     if (!selectedFile.value) {
@@ -266,14 +398,14 @@ function formatDate(value) {
 
 function cardTone(status) {
     if (status === 'ready') {
-        return 'border-emerald-900/40';
+        return 'border-l-[3px] border-l-emerald-500/50';
     }
 
     if (status === 'failed') {
-        return 'border-red-900/40';
+        return 'border-l-[3px] border-l-red-500/50';
     }
 
-    return 'border-indigo-900/50';
+    return 'border-l-[3px] border-l-indigo-500/50';
 }
 
 function autoRefresh() {
@@ -295,6 +427,7 @@ async function refreshLibrary() {
         const { data } = await axios.get('/api/presentations');
         presentations.value = data;
         autoRefresh();
+        updateListHeight();
     } finally {
         loadingList.value = false;
     }
@@ -311,8 +444,8 @@ function validateFile(file) {
 
     const extension = file.name.split('.').pop()?.toLowerCase();
 
-    if (!['ppt', 'pptx'].includes(extension)) {
-        return 'Only PPT and PPTX files are supported.';
+    if (!['ppt', 'pptx', 'pdf'].includes(extension)) {
+        return 'Only PPT, PPTX, and PDF files are supported.';
     }
 
     if (file.size > 50 * 1024 * 1024) {

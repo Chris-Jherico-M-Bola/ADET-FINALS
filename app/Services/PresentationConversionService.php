@@ -4,14 +4,16 @@ namespace App\Services;
 
 use App\Models\Presentation;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
 
 class PresentationConversionService
 {
+    private readonly string $nodeScript;
+
     public function __construct(
         private readonly PDFSlideCountService $slideCountService
     ) {
+        $this->nodeScript = base_path('bin/convert-pptx.cjs');
     }
 
     public function prepareStorage(string $presentationId): string
@@ -39,56 +41,30 @@ class PresentationConversionService
 
         $extension = strtolower(pathinfo($presentation->original_name, PATHINFO_EXTENSION));
         $pdfPath = $presentation->directory.'/presentation.pdf';
-        $stagingDirectory = $presentation->directory.'/conversion-tmp';
 
         File::ensureDirectoryExists($presentation->directory);
-        File::deleteDirectory($stagingDirectory);
-        File::ensureDirectoryExists($stagingDirectory);
-        File::delete($pdfPath);
 
         if ($extension === 'pdf') {
             File::copy($presentation->source_path, $pdfPath);
-            File::deleteDirectory($stagingDirectory);
-            return $this->finalize($presentation, $pdfPath);
-        }
-
-        $binary = $this->findLibreOfficeBinary();
-
-        if (! $binary) {
-            throw new \RuntimeException('LibreOffice / soffice was not found. Install LibreOffice or set LIBREOFFICE_PATH.');
-        }
-
-        try {
-            $escapedBinary = str_replace("'", "''", $binary);
-            $escapedOutdir = str_replace("'", "''", $stagingDirectory);
-            $escapedSource = str_replace("'", "''", $presentation->source_path);
-            $command = sprintf(
-                'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \'%s\' --headless --nologo --nofirststartwizard --norestore --convert-to pdf --outdir \'%s\' \'%s\'" 2>&1',
-                $escapedBinary,
-                $escapedOutdir,
-                $escapedSource
-            );
-
-            $output = [];
-            $exitCode = 0;
-            exec($command, $output, $exitCode);
-
-            $generatedPdf = $stagingDirectory.'/'.pathinfo($presentation->source_path, PATHINFO_FILENAME).'.pdf';
-
-            if (! is_file($generatedPdf)) {
-                if ($exitCode !== 0) {
-                    throw new \RuntimeException(trim(implode(PHP_EOL, $output) ?: 'Conversion failed.'));
-                }
-
-                throw new \RuntimeException(trim(implode(PHP_EOL, $output) ?: 'LibreOffice did not produce a PDF output file.'));
-            }
-
-            File::move($generatedPdf, $pdfPath);
 
             return $this->finalize($presentation, $pdfPath);
-        } finally {
-            File::deleteDirectory($stagingDirectory);
         }
+
+        $process = new Process([
+            $this->findNodeBinary(),
+            $this->nodeScript,
+            '--input', $presentation->source_path,
+            '--output', $pdfPath,
+        ]);
+        $process->run();
+
+        if (! $process->isSuccessful() || ! is_file($pdfPath)) {
+            $errorOutput = trim($process->getErrorOutput()) ?: 'PPTX-to-PDF conversion failed.';
+
+            throw new \RuntimeException($errorOutput);
+        }
+
+        return $this->finalize($presentation, $pdfPath);
     }
 
     public function deleteStorage(Presentation $presentation): void
@@ -115,47 +91,15 @@ class PresentationConversionService
         return $presentation->refresh();
     }
 
-    private function findLibreOfficeBinary(): ?string
+    private function findNodeBinary(): string
     {
-        $candidates = array_values(array_filter([
-            env('LIBREOFFICE_PATH'),
-            env('SOFFICE_PATH'),
-            $this->which('soffice'),
-            $this->which('soffice.com'),
-            $this->which('libreoffice'),
-            $this->which('libreoffice.com'),
-            'C:\\Program Files\\LibreOffice\\program\\soffice.com',
-            'C:\\Program Files\\LibreOffice\\program\\libreoffice.com',
-            'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
-            'C:\\Program Files\\LibreOffice\\program\\libreoffice.exe',
-            'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
-            'C:\\Program Files (x86)\\LibreOffice\\program\\libreoffice.exe',
-        ]));
-
-        foreach ($candidates as $candidate) {
-            if (is_string($candidate) && $candidate !== '' && (str_contains($candidate, '.exe') || str_contains($candidate, '.com') ? is_file($candidate) : true)) {
-                return $candidate;
-            }
-        }
-
-        return null;
-    }
-
-    private function which(string $command): ?string
-    {
-        $process = Process::fromShellCommandline(PHP_OS_FAMILY === 'Windows' ? "where {$command}" : "command -v {$command}");
+        $process = Process::fromShellCommandline('command -v node');
         $process->run();
 
-        if (! $process->isSuccessful()) {
-            return null;
+        if ($process->isSuccessful()) {
+            return trim($process->getOutput());
         }
 
-        $output = trim($process->getOutput());
-
-        if ($output === '') {
-            return null;
-        }
-
-        return Str::of($output)->before(PHP_EOL)->trim()->toString();
+        throw new \RuntimeException('Node.js binary not found. Ensure Node.js is installed and on PATH.');
     }
 }
