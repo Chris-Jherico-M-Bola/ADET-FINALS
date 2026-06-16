@@ -6,6 +6,7 @@ use App\Models\Presentation;
 use App\Services\PresentationConversionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class PresentationController extends Controller
 {
@@ -27,7 +28,7 @@ class PresentationController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'file' => ['required', 'file', 'mimes:ppt,pptx', 'max:51200'],
+            'file' => ['required', 'file', Rule::file()->extensions(['ppt', 'pptx', 'pdf']), 'max:51200'],
             'title' => ['nullable', 'string', 'max:255'],
         ]);
 
