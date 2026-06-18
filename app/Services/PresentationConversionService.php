@@ -11,11 +11,14 @@ class PresentationConversionService
     private readonly string $nodeScript;
 
     public function __construct(
-        private readonly PDFSlideCountService $slideCountService
+        private readonly PDFSlideCountService $slideCountService,
     ) {
         $this->nodeScript = base_path('bin/convert-pptx.cjs');
     }
 
+    /**
+     * Create a local working directory for a presentation.
+     */
     public function prepareStorage(string $presentationId): string
     {
         $directory = storage_path("app/presentations/{$presentationId}");
@@ -24,71 +27,92 @@ class PresentationConversionService
         return $directory;
     }
 
-    public function storeSourceFile(string $directory, string $extension, string $contents): string
-    {
-        $sourcePath = $directory.'/original'.($extension ? '.'.$extension : '');
-        File::put($sourcePath, $contents);
-
-        return $sourcePath;
-    }
-
-    public function convert(Presentation $presentation): Presentation
+    /**
+     * Convert a presentation. The source file must exist at $localSourcePath.
+     * On success, source + PDF are uploaded to Supabase, local files are
+     * cleaned up, and the presentation record is updated with remote paths.
+     */
+    public function convert(Presentation $presentation, string $localSourcePath): Presentation
     {
         $presentation->forceFill([
             'status' => 'processing',
             'error_message' => null,
         ])->save();
 
+        $uuid = $presentation->id;
+        $localDir = dirname($localSourcePath);
         $extension = strtolower(pathinfo($presentation->original_name, PATHINFO_EXTENSION));
-        $pdfPath = $presentation->directory.'/presentation.pdf';
-
-        File::ensureDirectoryExists($presentation->directory);
+        $localPdfPath = "{$localDir}/presentation.pdf";
 
         if ($extension === 'pdf') {
-            File::copy($presentation->source_path, $pdfPath);
+            File::copy($localSourcePath, $localPdfPath);
+        } else {
+            $process = new Process([
+                $this->findNodeBinary(),
+                $this->nodeScript,
+                '--input', $localSourcePath,
+                '--output', $localPdfPath,
+            ]);
+            $process->run();
 
-            return $this->finalize($presentation, $pdfPath);
+            if (! $process->isSuccessful() || ! is_file($localPdfPath)) {
+                $errorOutput = trim($process->getErrorOutput()) ?: 'PPTX-to-PDF conversion failed.';
+                throw new \RuntimeException($errorOutput);
+            }
         }
 
-        $process = new Process([
-            $this->findNodeBinary(),
-            $this->nodeScript,
-            '--input', $presentation->source_path,
-            '--output', $pdfPath,
-        ]);
-        $process->run();
+        // Upload source + PDF to Supabase Storage
+        $sourceKey = "{$uuid}/original.{$extension}";
+        $pdfKey = "{$uuid}/presentation.pdf";
 
-        if (! $process->isSuccessful() || ! is_file($pdfPath)) {
-            $errorOutput = trim($process->getErrorOutput()) ?: 'PPTX-to-PDF conversion failed.';
+        SupabaseStorageService::upload($localSourcePath, $sourceKey);
+        SupabaseStorageService::upload($localPdfPath, $pdfKey);
 
-            throw new \RuntimeException($errorOutput);
-        }
+        // Clean up local working directory
+        File::deleteDirectory($localDir);
 
-        return $this->finalize($presentation, $pdfPath);
-    }
+        // Count slides from the uploaded PDF
+        $tempPdf = tempnam(sys_get_temp_dir(), 'slidecount_').'.pdf';
+        file_put_contents($tempPdf, SupabaseStorageService::get($pdfKey));
+        $slideCount = $this->slideCountService->count($tempPdf);
+        File::delete($tempPdf);
 
-    public function deleteStorage(Presentation $presentation): void
-    {
-        if (is_dir($presentation->directory)) {
-            File::deleteDirectory($presentation->directory);
-        }
-    }
-
-    public function retry(Presentation $presentation): Presentation
-    {
-        return $this->convert($presentation->refresh());
-    }
-
-    private function finalize(Presentation $presentation, string $pdfPath): Presentation
-    {
         $presentation->forceFill([
-            'pdf_path' => $pdfPath,
-            'slide_count' => $this->slideCountService->count($pdfPath),
+            'source_path' => $sourceKey,
+            'pdf_path' => $pdfKey,
+            'slide_count' => $slideCount,
             'status' => 'ready',
             'converted_at' => now(),
         ])->save();
 
         return $presentation->refresh();
+    }
+
+    /**
+     * Retry conversion by downloading the source from Supabase first.
+     */
+    public function retry(Presentation $presentation): Presentation
+    {
+        $uuid = $presentation->id;
+        $localDir = $this->prepareStorage($uuid);
+        $extension = strtolower(pathinfo($presentation->original_name, PATHINFO_EXTENSION));
+        $localSourcePath = "{$localDir}/original.{$extension}";
+
+        // Download source from Supabase
+        file_put_contents(
+            $localSourcePath,
+            SupabaseStorageService::get($presentation->source_path)
+        );
+
+        return $this->convert($presentation, $localSourcePath);
+    }
+
+    /**
+     * Delete all presentation files from Supabase.
+     */
+    public function deleteStorage(Presentation $presentation): void
+    {
+        SupabaseStorageService::deletePresentationFiles($presentation);
     }
 
     private function findNodeBinary(): string
