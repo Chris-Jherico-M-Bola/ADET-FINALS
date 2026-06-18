@@ -130,6 +130,7 @@ export class VoiceRecognitionService {
         this.startedByUser = false;
         this.restartTimer = null;
         this.lastCommandTimes = {};
+        this.interimFiredAt = {};
         this.initRecognition();
     }
 
@@ -191,12 +192,21 @@ export class VoiceRecognitionService {
                     if (result.isFinal) {
                         finalTranscript += `${bestText} `;
 
-                        // Try each alternative for final results (most accurate).
+                        // Skip the final result if this same index already
+                        // dispatched a command via its interim firing — prevents
+                        // one utterance from triggering the command twice.
+                        const alreadyFired = this.interimFiredAt?.[index];
+
                         for (let j = 0; j < result.length; j++) {
                             const alt = result[j].transcript.trim().toLowerCase();
-                            if (alt && this.evaluateCommand(alt)) {
+                            if (alt && this.evaluateCommand(alt, alreadyFired)) {
                                 break;
                             }
+                        }
+
+                        // Cleanup: drop entries older than the newest processed.
+                        if (event.resultIndex > 0) {
+                            delete this.interimFiredAt?.[event.resultIndex - 1];
                         }
                     } else {
                         // Check interim results immediately so commands fire
@@ -204,7 +214,14 @@ export class VoiceRecognitionService {
                         // the API to decide the utterance is complete.
                         const interim = bestText.trim().toLowerCase();
                         if (interim) {
-                            this.evaluateCommand(interim);
+                            const matched = this.evaluateCommand(interim);
+                            if (matched) {
+                                // Record that this result index already fired a
+                                // command via interim, so the final result at the
+                                // same index won't re-dispatch it.
+                                if (!this.interimFiredAt) this.interimFiredAt = {};
+                                this.interimFiredAt[index] = matched;
+                            }
                         }
                         interimTranscript += bestText;
                     }
@@ -301,7 +318,6 @@ export class VoiceRecognitionService {
 
     /**
      * Try to match `phrase` against known commands.
-     * Returns true if a command was matched and dispatched.
      *
      * When multiple commands match the same phrase (common in continuous
      * mode where the API appends new speech to old buffer text), the
@@ -313,8 +329,14 @@ export class VoiceRecognitionService {
      * 1. Exact word match — a word in the phrase is in the terms list
      * 2. Substring match — a term is found anywhere within the phrase
      * 3. Fuzzy match — Levenshtein distance between a word and a term is ≤ threshold
+     *
+     * @param {string} phrase - The spoken text to evaluate.
+     * @param {string} [skipCommand] - If set and matches the matched command,
+     *   skip firing (used to prevent re-dispatch from final results when
+     *   the interim result already fired the same command).
+     * @returns {false|string} False if no match, or the command name that matched.
      */
-    evaluateCommand(phrase) {
+    evaluateCommand(phrase, skipCommand) {
         // --- Phonetic normalization for Filipino English ---
         let text = this.normalizePhonetic(phrase);
 
@@ -348,7 +370,8 @@ export class VoiceRecognitionService {
         }
 
         if (bestItem) {
-            return this.dispatchCommand(bestItem, phrase);
+            this.dispatchCommand(bestItem, phrase, skipCommand);
+            return bestItem.command;
         }
 
         return false;
@@ -400,7 +423,13 @@ export class VoiceRecognitionService {
      * Returns true (matched) regardless, so the caller stops scanning
      * alternatives, but only actually dispatches if enough time passed.
      */
-    dispatchCommand(item, phrase) {
+    dispatchCommand(item, phrase, skipCommand) {
+        // If this command was already fired by the interim result at the same
+        // utterance index, skip the final-result re-dispatch entirely.
+        if (skipCommand === item.command) {
+            return;
+        }
+
         const now = Date.now();
         const last = this.lastCommandTimes[item.command] || 0;
 
@@ -408,7 +437,5 @@ export class VoiceRecognitionService {
             this.lastCommandTimes[item.command] = now;
             this.config.onCommandRecognized(item.command, item.label, phrase);
         }
-
-        return true;
     }
 }

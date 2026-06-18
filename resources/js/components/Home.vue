@@ -12,9 +12,18 @@
                         Upload PowerPoint decks, wait for conversion, then present with keyboard and voice navigation.
                     </p>
                 </div>
-                <div class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/80 px-4 py-2 text-xs text-slate-300 shadow-lg shadow-slate-950/40">
-                    <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-                    Laravel + Vue
+                <div class="flex items-center gap-3">
+                    <button
+                        type="button"
+                        class="rounded-xl border border-indigo-800 bg-indigo-950/40 px-4 py-2 text-xs font-bold text-indigo-300 shadow-lg shadow-slate-950/40 transition hover:border-indigo-700 hover:text-indigo-200"
+                        @click="$emit('open-notes')"
+                    >
+                        Notes AI
+                    </button>
+                    <div class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/80 px-4 py-2 text-xs text-slate-300">
+                        <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+                        Laravel + Vue
+                    </div>
                 </div>
             </header>
 
@@ -204,6 +213,14 @@
                                     >
                                         Download
                                     </a>
+                                    <a
+                                        v-if="presentation.notes_url"
+                                        class="rounded-xl border border-emerald-800 bg-emerald-950/40 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:border-emerald-700 hover:text-emerald-200"
+                                        :href="presentation.notes_url"
+                                        download
+                                    >
+                                        Notes
+                                    </a>
                                     <button
                                         v-if="presentation.status === 'ready'"
                                         type="button"
@@ -286,24 +303,38 @@
                 </div>
                 <div class="space-y-3">
                     <div class="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">JD</div>
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">CJ</div>
                         <div>
-                            <p class="text-sm font-semibold text-white">John Doe</p>
-                            <p class="text-xs text-slate-400">Developer</p>
+                            <p class="text-sm font-semibold text-white">Bola, Chris Jericho M.</p>
+                            <p class="text-xs text-slate-400">Main Dev</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600 text-xs font-bold text-white">JS</div>
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600 text-xs font-bold text-white">PN</div>
                         <div>
-                            <p class="text-sm font-semibold text-white">Jane Smith</p>
-                            <p class="text-xs text-slate-400">Designer</p>
+                            <p class="text-sm font-semibold text-white">Sevilla, Paulo Neil A.</p>
+                            <p class="text-xs text-slate-400">Sub Dev</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">AC</div>
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">IM</div>
                         <div>
-                            <p class="text-sm font-semibold text-white">Alex Chen</p>
-                            <p class="text-xs text-slate-400">Project Manager</p>
+                            <p class="text-sm font-semibold text-white">Arabaca, Irish May N.</p>
+                            <p class="text-xs text-slate-400">&nbsp;</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-amber-600 text-xs font-bold text-white">JP</div>
+                        <div>
+                            <p class="text-sm font-semibold text-white">Dumas, John Paul P.</p>
+                            <p class="text-xs text-slate-400">&nbsp;</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-rose-600 text-xs font-bold text-white">LS</div>
+                        <div>
+                            <p class="text-sm font-semibold text-white">Miñoza, Leovie S.</p>
+                            <p class="text-xs text-slate-400">&nbsp;</p>
                         </div>
                     </div>
                 </div>
@@ -316,7 +347,7 @@
 import axios from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-const emit = defineEmits(['present']);
+const emit = defineEmits(['present', 'open-notes']);
 
 const presentations = ref([]);
 const loadingList = ref(true);

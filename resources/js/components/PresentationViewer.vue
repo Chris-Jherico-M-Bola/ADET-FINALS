@@ -1,6 +1,6 @@
 <template>
-    <div class="flex min-h-screen flex-col overflow-hidden bg-slate-950 text-slate-100">
-        <header class="flex items-center justify-between border-b border-slate-800/80 bg-slate-950/90 px-4 py-3 backdrop-blur md:px-6">
+    <div class="flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100">
+        <header class="flex shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-950/90 px-4 py-3 backdrop-blur md:px-6">
             <div class="flex min-w-0 items-center gap-3">
                 <button
                     type="button"
@@ -21,11 +21,12 @@
             </div>
         </header>
 
-        <div v-if="mobileNotice" class="border-b border-amber-900/50 bg-amber-950/60 px-4 py-2 text-center text-xs text-amber-200 md:hidden">
+        <div v-if="mobileNotice" class="shrink-0 border-b border-amber-900/50 bg-amber-950/60 px-4 py-2 text-center text-xs text-amber-200 md:hidden">
             Best viewed on desktop. Touch navigation is supported, but the presenter layout is optimized for larger screens.
         </div>
 
-        <div class="relative flex min-h-0 flex-1">
+        <div class="relative flex min-h-0 flex-1 overflow-hidden">
+            <!-- voice sidebar -->
             <aside
                 class="relative flex shrink-0 flex-col border-r border-slate-800 bg-slate-950/95 transition-all duration-300"
                 :class="voiceSidebarOpen ? 'w-80' : 'w-0 border-r-0'"
@@ -38,7 +39,7 @@
                     {{ voiceSidebarOpen ? '<' : '>' }}
                 </button>
 
-                <div v-if="voiceSidebarOpen" class="flex h-full flex-col gap-5 overflow-y-auto p-5">
+                <div v-if="voiceSidebarOpen" class="no-scrollbar flex h-full flex-col gap-5 overflow-y-auto p-5">
                     <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
                         <div class="flex items-start justify-between gap-4">
                             <div>
@@ -111,7 +112,7 @@
                             </button>
                         </div>
 
-                        <div class="mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl bg-slate-950/80 p-3 font-mono text-[11px] text-slate-400">
+                        <div class="no-scrollbar mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl bg-slate-950/80 p-3 font-mono text-[11px] text-slate-400">
                             <p v-if="liveTranscript" class="text-slate-100">
                                 {{ liveTranscript }}
                             </p>
@@ -126,12 +127,47 @@
                                 </ul>
                             </div>
                         </div>
+
+                        <div class="mt-3 flex items-center gap-2 border-t border-slate-800 pt-3">
+                            <button
+                                type="button"
+                                class="flex-1 rounded-xl px-3 py-2 text-xs font-bold transition"
+                                :class="
+                                    notesSaved
+                                        ? 'border border-emerald-700 bg-emerald-900/40 text-emerald-300'
+                                        : 'border border-indigo-800 bg-indigo-900/40 text-indigo-300 hover:bg-indigo-900/70'
+                                "
+                                :disabled="sessionTranscript.length === 0 || isSavingNotes"
+                                @click="saveTranscriptNotes"
+                            >
+                                <span v-if="isSavingNotes" class="inline-flex items-center gap-2">
+                                    <span class="h-3 w-3 animate-spin rounded-full border border-indigo-400 border-t-transparent"></span>
+                                    Saving...
+                                </span>
+                                <span v-else-if="notesSaved">Notes saved ✓</span>
+                                <span v-else>Save transcript as notes ({{ sessionTranscript.length }})</span>
+                            </button>
+
+                            <a
+                                v-if="notesSaved && notesUrl"
+                                :href="notesUrl"
+                                target="_blank"
+                                class="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-400 transition hover:text-white"
+                            >
+                                View
+                            </a>
+                        </div>
                     </div>
                 </div>
             </aside>
 
-            <main ref="stageRef" class="relative flex min-w-0 flex-1 flex-col items-center justify-center overflow-hidden bg-slate-950 px-4 py-6 md:px-6">
-                <div class="relative flex min-h-[320px] w-full max-w-6xl flex-1 items-center justify-center rounded-3xl border border-slate-800 bg-slate-950/60 p-3 shadow-2xl shadow-slate-950/60">
+            <!-- stage -->
+            <main class="relative flex min-w-0 flex-1 flex-col items-center justify-center overflow-hidden bg-slate-950 px-4 py-6 md:px-6">
+                <!-- ref is on the inner box so getBoundingClientRect gives the true drawable area -->
+                <div
+                    ref="stageBoxRef"
+                    class="relative flex min-h-[320px] w-full max-w-6xl flex-1 items-center justify-center overflow-hidden rounded-3xl border border-slate-800 bg-slate-950/60 p-3 shadow-2xl shadow-slate-950/60"
+                >
                     <div v-if="isLoading" class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-3xl bg-slate-950/90 text-slate-300">
                         <div class="h-10 w-10 animate-spin rounded-full border-2 border-slate-700 border-t-indigo-400"></div>
                         <p class="text-sm">Loading presentation...</p>
@@ -144,8 +180,17 @@
                         </div>
                     </div>
 
-                    <canvas ref="canvasOne" class="absolute inset-0 m-auto transition-opacity duration-500" :class="activeCanvasId === 1 ? 'opacity-100' : 'opacity-0'"></canvas>
-                    <canvas ref="canvasTwo" class="absolute inset-0 m-auto transition-opacity duration-500" :class="activeCanvasId === 2 ? 'opacity-100' : 'opacity-0'"></canvas>
+                    <!-- canvases are absolutely centred; max-width/height prevents overflow -->
+                    <canvas
+                        ref="canvasOne"
+                        class="absolute inset-0 m-auto max-h-full max-w-full transition-opacity duration-500"
+                        :class="activeCanvasId === 1 ? 'opacity-100' : 'opacity-0'"
+                    ></canvas>
+                    <canvas
+                        ref="canvasTwo"
+                        class="absolute inset-0 m-auto max-h-full max-w-full transition-opacity duration-500"
+                        :class="activeCanvasId === 2 ? 'opacity-100' : 'opacity-0'"
+                    ></canvas>
 
                     <div
                         v-if="voiceBadge"
@@ -156,6 +201,7 @@
                 </div>
             </main>
 
+            <!-- thumbnail strip -->
             <aside
                 class="relative flex shrink-0 flex-col border-l border-slate-800 bg-slate-950/95 transition-all duration-300"
                 :class="thumbnailStripOpen ? 'w-64' : 'w-0 border-l-0'"
@@ -168,32 +214,41 @@
                     {{ thumbnailStripOpen ? '>' : '<' }}
                 </button>
 
-                <div v-if="thumbnailStripOpen" class="flex h-full flex-col gap-4 overflow-y-auto p-4">
-                    <div class="flex items-center justify-between">
+                <template v-if="thumbnailStripOpen">
+                    <!-- sticky header -->
+                    <div class="flex shrink-0 items-center justify-between px-4 py-3">
                         <h2 class="text-sm font-bold text-white">Slides</h2>
                         <span class="text-[11px] text-slate-500">{{ totalPages }} total</span>
                     </div>
 
-                    <button
-                        v-for="pageNumber in totalPages"
-                        :key="pageNumber"
-                        type="button"
-                        class="overflow-hidden rounded-2xl border transition"
-                        :class="currentPage === pageNumber ? 'border-indigo-500 ring-2 ring-indigo-500/30' : 'border-slate-800 hover:border-slate-700'"
-                        @click="jumpToPage(pageNumber)"
-                    >
-                        <div class="relative aspect-video bg-slate-950">
-                            <canvas :ref="(el) => setThumbCanvas(el, pageNumber - 1)" class="h-full w-full"></canvas>
-                            <span class="absolute bottom-2 right-2 rounded-md bg-slate-950/80 px-2 py-1 text-[10px] font-bold text-slate-200">
-                                {{ pageNumber }}
-                            </span>
+                    <!-- scrollable thumbnails -->
+                    <div class="no-scrollbar flex-1 overflow-y-auto px-4 pb-4">
+                        <div class="flex flex-col gap-3">
+                            <button
+                                v-for="pageNumber in totalPages"
+                                :key="pageNumber"
+                                type="button"
+                                class="w-full overflow-hidden rounded-2xl border transition"
+                                :class="currentPage === pageNumber ? 'border-indigo-500 ring-2 ring-indigo-500/30' : 'border-slate-800 hover:border-slate-700'"
+                                @click="jumpToPage(pageNumber)"
+                            >
+                                <div class="relative aspect-video w-full bg-slate-950">
+                                    <canvas
+                                        :ref="(el) => setThumbCanvas(el, pageNumber - 1)"
+                                        class="absolute inset-0 h-full w-full"
+                                    ></canvas>
+                                    <span class="absolute bottom-2 right-2 z-10 rounded-md bg-slate-950/80 px-2 py-1 text-[10px] font-bold text-slate-200">
+                                        {{ pageNumber }}
+                                    </span>
+                                </div>
+                            </button>
                         </div>
-                    </button>
-                </div>
+                    </div>
+                </template>
             </aside>
         </div>
 
-        <footer class="flex flex-col gap-3 border-t border-slate-800/80 bg-slate-950/90 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
+        <footer class="flex shrink-0 flex-col gap-3 border-t border-slate-800/80 bg-slate-950/90 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
             <div class="flex items-center gap-2">
                 <button
                     type="button"
@@ -249,27 +304,31 @@ const props = defineProps({
 
 const emit = defineEmits(['exit']);
 
-const canvasOne = ref(null);
-const canvasTwo = ref(null);
-const stageRef = ref(null);
+const canvasOne    = ref(null);
+const canvasTwo    = ref(null);
+const stageBoxRef  = ref(null);   // inner stage box, not the outer <main>
 const thumbCanvasRefs = ref([]);
-const pdfDoc = shallowRef(null);
+const pdfDoc       = shallowRef(null);
 const presentationTitle = ref('');
-const currentPage = ref(1);
-const totalPages = ref(1);
-const isLoading = ref(true);
-const loadError = ref('');
-const isRendering = ref(false);
+const currentPage  = ref(1);
+const totalPages   = ref(1);
+const isLoading    = ref(true);
+const loadError    = ref('');
+const isRendering  = ref(false);
 const activeCanvasId = ref(1);
-const voiceSidebarOpen = ref(true);
+const voiceSidebarOpen   = ref(true);
 const thumbnailStripOpen = ref(true);
-const micActive = ref(false);
-const micError = ref('');
-const language = ref('en-US');
+const micActive    = ref(false);
+const micError     = ref('');
+const language     = ref('en-US');
 const wakeWordEnabled = ref(false);
-const liveTranscript = ref('');
+const liveTranscript  = ref('');
 const transcriptHistory = ref([]);
-const voiceBadge = ref('');
+const sessionTranscript = ref([]);
+const isSavingNotes = ref(false);
+const notesSaved   = ref(false);
+const notesUrl     = ref('');
+const voiceBadge   = ref('');
 const mobileNotice = ref(window.innerWidth < 768);
 
 let voiceService = null;
@@ -277,44 +336,30 @@ let feedbackTimer = null;
 let transcriptTimer = null;
 let renderToken = 0;
 let currentPageRenderChain = Promise.resolve();
-let thumbnailRenderChain = Promise.resolve();
+let thumbnailRenderChain   = Promise.resolve();
 
 function setThumbCanvas(el, index) {
-    if (el) {
-        thumbCanvasRefs.value[index] = el;
-    }
+    if (el) thumbCanvasRefs.value[index] = el;
 }
 
 function setBadge(message) {
     voiceBadge.value = message;
     clearTimeout(feedbackTimer);
-    feedbackTimer = setTimeout(() => {
-        voiceBadge.value = '';
-    }, 1500);
+    feedbackTimer = setTimeout(() => { voiceBadge.value = ''; }, 1500);
 }
 
 function clearTranscript() {
     liveTranscript.value = '';
     transcriptHistory.value = [];
+    sessionTranscript.value = [];
+    notesSaved.value = false;
+    notesUrl.value = '';
 }
 
 function handleVoiceCommand(command, label) {
-    if (command === 'next') {
-        nextPage();
-        setBadge(`-> ${label}`);
-        return;
-    }
-
-    if (command === 'previous') {
-        previousPage();
-        setBadge(`<- ${label}`);
-        return;
-    }
-
-    if (command === 'exit') {
-        setBadge(`X ${label}`);
-        setTimeout(() => emit('exit'), 450);
-    }
+    if (command === 'next')     { nextPage();     setBadge(`-> ${label}`); return; }
+    if (command === 'previous') { previousPage(); setBadge(`<- ${label}`); return; }
+    if (command === 'exit')     { setBadge(`X ${label}`); setTimeout(() => emit('exit'), 450); }
 }
 
 function createVoiceService() {
@@ -326,52 +371,47 @@ function createVoiceService() {
             onTranscriptChange: (text, isFinal) => {
                 liveTranscript.value = text;
                 clearTimeout(transcriptTimer);
-                transcriptTimer = setTimeout(() => {
-                    liveTranscript.value = '';
-                }, 4000);
-
+                transcriptTimer = setTimeout(() => { liveTranscript.value = ''; }, 4000);
                 if (isFinal && text.trim()) {
-                    transcriptHistory.value = [text.trim(), ...transcriptHistory.value].slice(0, 6);
+                    const clean = text.trim();
+                    transcriptHistory.value = [clean, ...transcriptHistory.value].slice(0, 6);
+                    sessionTranscript.value.push({ text: clean, slideNumber: currentPage.value, timestamp: new Date().toISOString() });
                 }
             },
-            onStateChange: (active, error) => {
-                micActive.value = active;
-                micError.value = error || '';
-            },
+            onStateChange: (active, error) => { micActive.value = active; micError.value = error || ''; },
         });
         return;
     }
-
     voiceService.updateConfig(language.value, wakeWordEnabled.value);
 }
 
 function toggleMic() {
     createVoiceService();
-
-    if (micActive.value) {
-        voiceService.stop();
-        return;
-    }
-
+    if (micActive.value) { voiceService.stop(); return; }
     voiceService.start();
 }
 
-function nextPage() {
-    currentPage.value = Math.min(totalPages.value, currentPage.value + 1);
+async function saveTranscriptNotes() {
+    if (sessionTranscript.value.length === 0) return;
+    isSavingNotes.value = true;
+    try {
+        const { data } = await axios.post(`/api/presentations/${props.presentationId}/notes`, { notes: sessionTranscript.value });
+        notesSaved.value = true;
+        notesUrl.value = data.notes_url;
+    } catch (error) {
+        console.error('Failed to save notes', error);
+    } finally {
+        isSavingNotes.value = false;
+    }
 }
 
-function previousPage() {
-    currentPage.value = Math.max(1, currentPage.value - 1);
-}
-
-function jumpToPage(pageNumber) {
-    currentPage.value = Math.min(Math.max(pageNumber, 1), totalPages.value);
-}
+function nextPage()     { currentPage.value = Math.min(totalPages.value, currentPage.value + 1); }
+function previousPage() { currentPage.value = Math.max(1, currentPage.value - 1); }
+function jumpToPage(n)  { currentPage.value = Math.min(Math.max(n, 1), totalPages.value); }
 
 async function loadPresentation() {
     isLoading.value = true;
     loadError.value = '';
-
     try {
         const { data } = await axios.get(`/api/presentations/${props.presentationId}`);
         presentationTitle.value = data.title;
@@ -392,145 +432,78 @@ async function loadPresentation() {
 
 async function renderThumbnails() {
     thumbnailRenderChain = thumbnailRenderChain.then(async () => {
-        if (!pdfDoc.value || !thumbnailStripOpen.value) {
-            return;
-        }
-
+        if (!pdfDoc.value || !thumbnailStripOpen.value) return;
         await nextTick();
-
+        // Use the aside width (256px) minus padding (2 × 16px) for accurate sizing
+        const thumbWidth = 256 - 32;
         for (let index = 0; index < totalPages.value; index += 1) {
             const canvas = thumbCanvasRefs.value[index];
-
-            if (canvas) {
-                await renderPDFThumbnail(pdfDoc.value, index + 1, canvas, 160);
-            }
+            if (canvas) await renderPDFThumbnail(pdfDoc.value, index + 1, canvas, thumbWidth);
         }
     }).catch((error) => {
-        if (error?.name !== 'RenderingCancelledException') {
-            console.error('Unable to render thumbnails', error);
-        }
+        if (error?.name !== 'RenderingCancelledException') console.error('Unable to render thumbnails', error);
     });
-
     return thumbnailRenderChain;
 }
 
 async function renderCurrentPage() {
-    if (!pdfDoc.value) {
-        return;
-    }
+    if (!pdfDoc.value) return;
 
     const token = ++renderToken;
     currentPageRenderChain = currentPageRenderChain.then(async () => {
         await nextTick();
 
         const targetCanvas = activeCanvasId.value === 1 ? canvasTwo.value : canvasOne.value;
-
-        if (!pdfDoc.value || !targetCanvas) {
-            return;
-        }
+        if (!pdfDoc.value || !targetCanvas) return;
 
         isRendering.value = true;
-
         try {
-            const page = await pdfDoc.value.getPage(currentPage.value);
-            const baseViewport = page.getViewport({ scale: 1 });
-            const stageBounds = stageRef.value?.getBoundingClientRect();
-            const availableWidth = Math.max(320, (stageBounds?.width ?? baseViewport.width) - 32);
-            const availableHeight = Math.max(320, (stageBounds?.height ?? baseViewport.height) - 32);
-            const fitScale = Math.min(availableWidth / baseViewport.width, availableHeight / baseViewport.height);
+            // Measure the inner stage box — the true drawable area
+            const box = stageBoxRef.value?.getBoundingClientRect();
+            // Subtract padding (p-3 = 12px each side)
+            const availableWidth  = Math.max(320, (box?.width  ?? 800) - 24);
+            const availableHeight = Math.max(240, (box?.height ?? 600) - 24);
 
-            if (token !== renderToken) {
-                return;
-            }
+            if (token !== renderToken) return;
 
-            await renderPDFPage(pdfDoc.value, currentPage.value, targetCanvas, fitScale);
+            await renderPDFPage(pdfDoc.value, currentPage.value, targetCanvas, availableWidth, availableHeight);
 
             if (token === renderToken) {
                 activeCanvasId.value = targetCanvas === canvasOne.value ? 1 : 2;
             }
         } catch (error) {
-            if (error?.name === 'RenderingCancelledException') {
-                return;
-            }
-
+            if (error?.name === 'RenderingCancelledException') return;
             console.error('Unable to render page', error);
         } finally {
-            if (token === renderToken) {
-                isRendering.value = false;
-            }
+            if (token === renderToken) isRendering.value = false;
         }
     }).catch((error) => {
-        if (error?.name !== 'RenderingCancelledException') {
-            console.error('Unable to render page', error);
-        }
+        if (error?.name !== 'RenderingCancelledException') console.error('Unable to render page', error);
     });
-
     return currentPageRenderChain;
 }
 
 function handleKeydown(event) {
     const tagName = event.target?.tagName?.toLowerCase();
+    if (['input', 'textarea', 'select'].includes(tagName)) return;
 
-    if (['input', 'textarea', 'select'].includes(tagName)) {
-        return;
-    }
-
-    if (event.key === 'ArrowRight' || event.code === 'Space') {
-        event.preventDefault();
-        nextPage();
-        return;
-    }
-
-    if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        previousPage();
-        return;
-    }
-
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        emit('exit');
-        return;
-    }
-
-    if (event.key === 'm' || event.key === 'M') {
-        event.preventDefault();
-        toggleMic();
-    }
+    if (event.key === 'ArrowRight' || event.code === 'Space') { event.preventDefault(); nextPage();     return; }
+    if (event.key === 'ArrowLeft')                             { event.preventDefault(); previousPage(); return; }
+    if (event.key === 'Escape')                                { event.preventDefault(); emit('exit');   return; }
+    if (event.key === 'm' || event.key === 'M')                { event.preventDefault(); toggleMic();   }
 }
 
 function handleResize() {
     mobileNotice.value = window.innerWidth < 768;
+    renderCurrentPage();
 }
 
-watch(language, () => {
-    if (voiceService) {
-        voiceService.updateConfig(language.value, wakeWordEnabled.value);
-    }
-});
-
-watch(wakeWordEnabled, () => {
-    if (voiceService) {
-        voiceService.updateConfig(language.value, wakeWordEnabled.value);
-    }
-});
-
-watch([pdfDoc, currentPage], () => {
-    renderCurrentPage();
-});
-
-watch(thumbnailStripOpen, () => {
-    renderThumbnails();
-    renderCurrentPage();
-});
-
-watch(totalPages, () => {
-    renderThumbnails();
-});
-
-watch([voiceSidebarOpen, thumbnailStripOpen], () => {
-    renderCurrentPage();
-});
+watch(language,       () => { if (voiceService) voiceService.updateConfig(language.value, wakeWordEnabled.value); });
+watch(wakeWordEnabled,() => { if (voiceService) voiceService.updateConfig(language.value, wakeWordEnabled.value); });
+watch([pdfDoc, currentPage], () => { renderCurrentPage(); });
+watch(thumbnailStripOpen,    () => { renderThumbnails(); renderCurrentPage(); });
+watch(totalPages,            () => { renderThumbnails(); });
+watch([voiceSidebarOpen, thumbnailStripOpen], () => { renderCurrentPage(); });
 
 onMounted(() => {
     window.addEventListener('keydown', handleKeydown);
@@ -543,9 +516,16 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', handleResize);
     clearTimeout(feedbackTimer);
     clearTimeout(transcriptTimer);
-
-    if (voiceService) {
-        voiceService.destroy();
-    }
+    if (voiceService) voiceService.destroy();
 });
 </script>
+
+<style scoped>
+.no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+</style>

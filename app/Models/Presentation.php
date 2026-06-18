@@ -13,6 +13,7 @@ class Presentation extends Model
         'directory',
         'source_path',
         'pdf_path',
+        'notes_path',
         'slide_count',
         'status',
         'error_message',
