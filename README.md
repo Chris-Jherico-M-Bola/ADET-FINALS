@@ -8,6 +8,12 @@
 <h1 align="center">ADET Presenter</h1>
 
 <p align="center">
+  <a href="https://adet-presenter.onrender.com/">
+    <img src="https://img.shields.io/badge/Live_Demo-46E3B7?style=for-the-badge&logo=render&logoColor=black" alt="Live Demo">
+  </a>
+</p>
+
+<p align="center">
   Upload PowerPoint decks and present them with voice navigation.<br>
   An AI-powered notes assistant helps you chat with your slide notes.
 </p>
@@ -163,7 +169,9 @@ docker push novakamiii/adet-presenter:latest
 </code></pre>
 
 <p>
-  <img src="https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=black" alt="Deployed on Render">
+  <a href="https://adet-presenter.onrender.com/">
+    <img src="https://img.shields.io/badge/Live_Demo-46E3B7?style=for-the-badge&logo=render&logoColor=black" alt="Live Demo">
+  </a>
 </p>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
