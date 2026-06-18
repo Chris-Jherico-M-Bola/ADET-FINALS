@@ -12,16 +12,19 @@ class PresentationConversionService
 
     public function __construct(
         private readonly PDFSlideCountService $slideCountService,
+        private readonly StorageService $storageService,
     ) {
         $this->nodeScript = base_path('bin/convert-pptx.cjs');
     }
 
     /**
      * Create a local working directory for a presentation.
+     * Uses a temp directory so the subsequent upload-to-storage
+     * is a true copy, not a no-op (important for local-only mode).
      */
     public function prepareStorage(string $presentationId): string
     {
-        $directory = storage_path("app/presentations/{$presentationId}");
+        $directory = sys_get_temp_dir().'/presentations/'.$presentationId;
         File::ensureDirectoryExists($directory);
 
         return $directory;
@@ -61,21 +64,19 @@ class PresentationConversionService
             }
         }
 
-        // Upload source + PDF to Supabase Storage
+        // Upload source + PDF to storage (Supabase → local fallback)
         $sourceKey = "{$uuid}/original.{$extension}";
         $pdfKey = "{$uuid}/presentation.pdf";
 
-        SupabaseStorageService::upload($localSourcePath, $sourceKey);
-        SupabaseStorageService::upload($localPdfPath, $pdfKey);
+        $this->storageService->upload($localSourcePath, $sourceKey);
+        $this->storageService->upload($localPdfPath, $pdfKey);
 
-        // Clean up local working directory
+        // Count slides from the local PDF *before* cleanup so it works
+        // in both Supabase and local-only modes.
+        $slideCount = $this->slideCountService->count($localPdfPath);
+
+        // Clean up the temporary working directory
         File::deleteDirectory($localDir);
-
-        // Count slides from the uploaded PDF
-        $tempPdf = tempnam(sys_get_temp_dir(), 'slidecount_').'.pdf';
-        file_put_contents($tempPdf, SupabaseStorageService::get($pdfKey));
-        $slideCount = $this->slideCountService->count($tempPdf);
-        File::delete($tempPdf);
 
         $presentation->forceFill([
             'source_path' => $sourceKey,
@@ -98,10 +99,10 @@ class PresentationConversionService
         $extension = strtolower(pathinfo($presentation->original_name, PATHINFO_EXTENSION));
         $localSourcePath = "{$localDir}/original.{$extension}";
 
-        // Download source from Supabase
+        // Download source from storage (Supabase → local fallback)
         file_put_contents(
             $localSourcePath,
-            SupabaseStorageService::get($presentation->source_path)
+            $this->storageService->get($presentation->source_path)
         );
 
         return $this->convert($presentation, $localSourcePath);
@@ -112,7 +113,7 @@ class PresentationConversionService
      */
     public function deleteStorage(Presentation $presentation): void
     {
-        SupabaseStorageService::deletePresentationFiles($presentation);
+        $this->storageService->deletePresentationFiles($presentation);
     }
 
     private function findNodeBinary(): string

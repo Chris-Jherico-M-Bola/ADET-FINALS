@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Presentation;
 use App\Services\PresentationConversionService;
-use App\Services\SupabaseStorageService;
+use App\Services\StorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -12,7 +12,8 @@ use Illuminate\Validation\Rule;
 class PresentationController extends Controller
 {
     public function __construct(
-        private readonly PresentationConversionService $conversionService
+        private readonly PresentationConversionService $conversionService,
+        private readonly StorageService $storageService,
     ) {
     }
 
@@ -98,14 +99,14 @@ class PresentationController extends Controller
     }
 
     /**
-     * Serve the PDF by proxying from Supabase.
+     * Serve the PDF by proxying from storage (Supabase → local fallback).
      */
     public function pdf(Presentation $presentation)
     {
         abort_unless($presentation->status === 'ready' && $presentation->pdf_path, 404);
 
         try {
-            $content = SupabaseStorageService::get($presentation->pdf_path);
+            $content = $this->storageService->get($presentation->pdf_path);
         } catch (\RuntimeException) {
             abort(404);
         }
@@ -117,14 +118,14 @@ class PresentationController extends Controller
     }
 
     /**
-     * Serve the source PPTX by proxying from Supabase.
+     * Serve the source PPTX by proxying from storage (Supabase → local fallback).
      */
     public function pptx(Presentation $presentation)
     {
         abort_unless($presentation->source_path, 404);
 
         try {
-            $content = SupabaseStorageService::get($presentation->source_path);
+            $content = $this->storageService->get($presentation->source_path);
         } catch (\RuntimeException) {
             abort(404);
         }
@@ -136,14 +137,14 @@ class PresentationController extends Controller
     }
 
     /**
-     * Serve the notes markdown by proxying from Supabase.
+     * Serve the notes markdown by proxying from storage (Supabase → local fallback).
      */
     public function notes(Presentation $presentation)
     {
         abort_unless($presentation->notes_path, 404);
 
         try {
-            $content = SupabaseStorageService::get($presentation->notes_path);
+            $content = $this->storageService->get($presentation->notes_path);
         } catch (\RuntimeException) {
             abort(404);
         }
@@ -185,10 +186,10 @@ class PresentationController extends Controller
         $content = implode("\n", $lines);
         $notesKey = $presentation->id.'/notes.md';
 
-        // Write to a temp file then upload to Supabase
+        // Write to a temp file then upload to storage (Supabase → local fallback)
         $tempPath = tempnam(sys_get_temp_dir(), 'notes_').'.md';
         file_put_contents($tempPath, $content);
-        SupabaseStorageService::upload($tempPath, $notesKey);
+        $this->storageService->upload($tempPath, $notesKey);
         @unlink($tempPath);
 
         $presentation->forceFill(['notes_path' => $notesKey])->save();
@@ -203,6 +204,15 @@ class PresentationController extends Controller
     {
         $hasNotes = $presentation->notes_path !== null && $presentation->notes_path !== '';
 
+        $pdfUrl = $presentation->pdf_path
+            ? $this->storageService->publicUrl($presentation->pdf_path, $presentation) : null;
+
+        $pptxUrl = $presentation->source_path
+            ? $this->storageService->publicUrl($presentation->source_path, $presentation) : null;
+
+        $notesUrl = $hasNotes
+            ? $this->storageService->publicUrl($presentation->notes_path, $presentation) : null;
+
         return [
             'id' => $presentation->id,
             'title' => $presentation->title,
@@ -216,9 +226,9 @@ class PresentationController extends Controller
             'converted_at' => optional($presentation->converted_at)?->toISOString(),
             'created_at' => $presentation->created_at?->toISOString(),
             'updated_at' => $presentation->updated_at?->toISOString(),
-            'pdf_url' => $presentation->pdf_path ? SupabaseStorageService::publicUrl($presentation->pdf_path) : null,
-            'pptx_url' => $presentation->source_path ? SupabaseStorageService::publicUrl($presentation->source_path) : null,
-            'notes_url' => $hasNotes ? SupabaseStorageService::publicUrl($presentation->notes_path) : null,
+            'pdf_url' => $pdfUrl,
+            'pptx_url' => $pptxUrl,
+            'notes_url' => $notesUrl,
         ];
     }
 }
