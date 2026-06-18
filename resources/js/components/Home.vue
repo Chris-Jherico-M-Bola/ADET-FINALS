@@ -32,7 +32,7 @@
                     <div class="mb-5 flex items-center justify-between gap-3">
                         <div>
                             <h2 class="text-lg font-bold text-white">Upload presentation</h2>
-                            <p class="text-sm text-slate-400">PPT, PPTX, and PDF, up to 50MB.</p>
+                            <p class="text-sm text-slate-400">PPT, PPTX, and PDF, up to 100MB.</p>
                         </div>
                         <button
                             type="button"
@@ -479,8 +479,8 @@ function validateFile(file) {
         return 'Only PPT, PPTX, and PDF files are supported.';
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-        return 'File must be 50MB or smaller.';
+    if (file.size > 100 * 1024 * 1024) {
+        return 'File must be 100MB or smaller.';
     }
 
     return '';

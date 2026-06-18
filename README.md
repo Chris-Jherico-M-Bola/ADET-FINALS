@@ -44,7 +44,7 @@
 <h2 id="features">Features</h2>
 
 <ul>
-  <li>Upload <code>.ppt</code>, <code>.pptx</code>, and <code>.pdf</code> files (up to 50MB)</li>
+  <li>Upload <code>.ppt</code>, <code>.pptx</code>, and <code>.pdf</code> files (up to 100MB)</li>
   <li>Convert decks to PDF with <code>pptx-to-pdf</code> (no LibreOffice required)</li>
   <li>Present slides in a Vue SPA with keyboard and voice navigation</li>
   <li>AI-powered Notes Assistant — chat with your slide notes via Puter.js</li>

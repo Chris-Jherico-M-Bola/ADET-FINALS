@@ -54,6 +54,7 @@ COPY --from=node-build   /build/public/build ./public/build
 
 # Deployment configs
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
+COPY deploy/php.ini    /usr/local/etc/php/conf.d/overrides.ini
 COPY deploy/start.sh   ./deploy/start.sh
 
 # Permissions
