@@ -1,0 +1,53 @@
+# Dependencies
+vendor/
+node_modules/
+
+# Environment
+.env
+.env.backup
+.env.production
+
+# Laravel
+storage/framework/cache/**
+storage/framework/sessions/**
+storage/framework/views/**
+storage/logs/**
+bootstrap/cache/*.php
+
+# Build artifacts
+public/build/
+public/hot
+public/storage
+
+# IDE / editors
+.fleet/
+.idea/
+.nova/
+.vscode/
+.zed/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Agent
+.agents/
+.~lock*
+
+# Temp
+.tmp/
+laravel-temp/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Tests
+.phpunit.cache
+.phpunit.result.cache
+
+# Misc
+*.md
+CHANGELOG*
+skills-lock.json
